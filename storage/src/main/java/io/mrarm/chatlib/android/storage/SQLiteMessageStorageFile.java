@@ -139,7 +139,9 @@ public class SQLiteMessageStorageFile {
             }
             Cursor cursor = database.rawQuery(query.toString(), null);
             List<MessageInfo> ret = new ArrayList<>(cursor.getCount());
-            while (cursor.moveToNext()) {
+            cursor.moveToLast();
+            cursor.moveToNext();
+            while (cursor.moveToPrevious()) {
                 ret.add(MessageStorageHelper.deserializeMessage(
                         MessageStorageHelper.deserializeSenderInfo(cursor.getString(1), MessageStorageHelper.bytesToUUID(cursor.getBlob(2))),
                         new Date(cursor.getLong(3)),
@@ -148,8 +150,7 @@ public class SQLiteMessageStorageFile {
                         cursor.getString(6)
                 ));
             }
-            cursor.moveToFirst();
-            return new MessageQueryResult(ret, cursor.getInt(0));
+            return new MessageQueryResult(ret, cursor.moveToLast() ? cursor.getInt(0) : -1);
         }
     }
 

@@ -50,7 +50,7 @@ class MessageStorageHelper {
         iof = serialized.indexOf('@', iof2 + 1);
         String user = serialized.substring(iof2 + 1, iof);
         String host = serialized.substring(iof + 1);
-        return new MessageSenderInfo(nick, user, host, new NickPrefixList(prefixes), uuid);
+        return new MessageSenderInfo(nick, user, host, prefixes.length() > 0 ? new NickPrefixList(prefixes) : null, uuid);
     }
 
     static String serializeExtraData(MessageInfo info) {

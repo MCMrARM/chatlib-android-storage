@@ -124,6 +124,7 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
             List<MessageInfo> ret = new ArrayList<>();
             ret.addAll(result.getMessages());
 
+            int afterId = result.getAfterId();
             for (long i : availableFiles.tailSet(fileDateId)) {
                 file = openFileFor(i, true);
                 result = file.getMessages(channel, -1, 0, count - ret.size());
@@ -131,10 +132,13 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
                 ret.addAll(0, result.getMessages());
                 if (result.getMessages().size() == count)
                     return new MessageList(ret, new MyMessageListAfterIdentifier(i, result.getAfterId(), 0));
-                fileDateId = i;
+                if (result.getAfterId() != -1) {
+                    fileDateId = i;
+                    afterId = result.getAfterId();
+                }
             }
 
-            return new MessageList(ret, new MyMessageListAfterIdentifier(fileDateId, result.getAfterId(), 0));
+            return new MessageList(ret, new MyMessageListAfterIdentifier(fileDateId, afterId, 0));
         }, callback, errorCallback);
     }
 
