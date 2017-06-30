@@ -1,11 +1,18 @@
 package io.mrarm.chatlib.android.storage;
 
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -102,6 +109,48 @@ public class SQLiteMessageStorageFile {
         //
     }
 
+    public MessageQueryResult getMessages(String channel, int id, int offset, int limit) {
+        synchronized (this) {
+            if (database == null)
+                openDatabase();
+
+            String tableName = MessagesContract.MessageEntry.getEscapedTableName(channel);
+            StringBuilder query = new StringBuilder();
+            query.append("SELECT (" +
+                    MessagesContract.MessageEntry.COLUMN_NAME_SENDER_DATA + "," +
+                    MessagesContract.MessageEntry.COLUMN_NAME_SENDER_UUID + "," +
+                    MessagesContract.MessageEntry.COLUMN_NAME_DATE + "," +
+                    MessagesContract.MessageEntry.COLUMN_NAME_TEXT + "," +
+                    MessagesContract.MessageEntry.COLUMN_NAME_TYPE + "," +
+                    MessagesContract.MessageEntry.COLUMN_NAME_EXTRA_DATA +
+                    ") FROM ");
+            query.append(tableName);
+            if (id != -1) {
+                query.append(" WHERE " + MessagesContract.MessageEntry._ID + "<");
+                query.append(id);
+            }
+            query.append(" ORDER BY " + MessagesContract.MessageEntry._ID + " DESC");
+            query.append(" LIMIT ");
+            query.append(limit);
+            if (offset != 0) {
+                query.append(" OFFSET ");
+                query.append(offset);
+            }
+            Cursor cursor = database.rawQuery(query.toString(), null);
+            List<MessageInfo> ret = new ArrayList<>(cursor.getCount());
+            while (cursor.moveToNext()) {
+                ret.add(MessageStorageHelper.deserializeMessage(
+                        MessageStorageHelper.deserializeSenderInfo(cursor.getString(1), MessageStorageHelper.bytesToUUID(cursor.getBlob(2))),
+                        new Date(cursor.getLong(3)),
+                        cursor.getString(4),
+                        cursor.getInt(5),
+                        cursor.getString(6)
+                ));
+            }
+            return new MessageQueryResult(ret, cursor.getInt(5));
+        }
+    }
+
     public void addMessage(String channel, MessageInfo message) {
         synchronized (this) {
             requireWrite();
@@ -111,12 +160,12 @@ public class SQLiteMessageStorageFile {
                 database.execSQL(
                         "CREATE TABLE IF NOT EXISTS " + tableName + " (" +
                                 MessagesContract.MessageEntry._ID + " INTEGER PRIMARY KEY," +
-                                MessagesContract.MessageEntry.COLUMN_NAME_SENDER_DATA + " TEXT NOT NULL," +
-                                MessagesContract.MessageEntry.COLUMN_NAME_SENDER_UUID + " BLOB NOT NULL," +
+                                MessagesContract.MessageEntry.COLUMN_NAME_SENDER_DATA + " TEXT," +
+                                MessagesContract.MessageEntry.COLUMN_NAME_SENDER_UUID + " BLOB," +
                                 MessagesContract.MessageEntry.COLUMN_NAME_DATE + " INTEGER," +
-                                MessagesContract.MessageEntry.COLUMN_NAME_TEXT + " TEXT NOT NULL," +
+                                MessagesContract.MessageEntry.COLUMN_NAME_TEXT + " TEXT," +
                                 MessagesContract.MessageEntry.COLUMN_NAME_TYPE + " INTEGER," +
-                                MessagesContract.MessageEntry.COLUMN_NAME_BATCH_UUID + " BLOB NOT NULL" +
+                                MessagesContract.MessageEntry.COLUMN_NAME_EXTRA_DATA + " TEXT" +
                                 ")");
                 statement = database.compileStatement(
                         "INSERT INTO " + tableName + " (" +
@@ -125,28 +174,19 @@ public class SQLiteMessageStorageFile {
                                 MessagesContract.MessageEntry.COLUMN_NAME_DATE + "," +
                                 MessagesContract.MessageEntry.COLUMN_NAME_TEXT + "," +
                                 MessagesContract.MessageEntry.COLUMN_NAME_TYPE + "," +
-                                MessagesContract.MessageEntry.COLUMN_NAME_BATCH_UUID +
+                                MessagesContract.MessageEntry.COLUMN_NAME_EXTRA_DATA +
                                 ") VALUES (?1,?2,?3,?4,?5,?6)");
                 createMessageStatements.put(tableName, statement);
             }
-            String senderData = message.getSender().getNickPrefixes().toString() + " " + message.getSender().getNick() + "!" + message.getSender().getUser() + "@" + message.getSender().getHost();
-            statement.bindString(1, senderData);
-            statement.bindBlob(2, uuidToBytes(message.getSender().getUserUUID()));
+            statement.bindString(1, MessageStorageHelper.serializeSenderInfo(message.getSender()));
+            statement.bindBlob(2, MessageStorageHelper.uuidToBytes(message.getSender().getUserUUID()));
             statement.bindLong(3, message.getDate().getTime());
             statement.bindString(4, message.getMessage());
             statement.bindLong(5, message.getType().asInt());
-            statement.bindBlob(6, uuidToBytes(message.getSender().getUserUUID()));
+            statement.bindString(6, MessageStorageHelper.serializeExtraData(message));
             statement.execute();
             statement.clearBindings();
         }
     }
-
-    private static byte[] uuidToBytes(UUID uuid) {
-        ByteBuffer b = ByteBuffer.wrap(new byte[16]);
-        b.putLong(uuid.getMostSignificantBits());
-        b.putLong(uuid.getLeastSignificantBits());
-        return b.array();
-    }
-
 
 }

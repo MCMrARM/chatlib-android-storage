@@ -15,7 +15,7 @@ public class MessagesContract {
         public static final String COLUMN_NAME_DATE = "date";
         public static final String COLUMN_NAME_TEXT = "text";
         public static final String COLUMN_NAME_TYPE = "type";
-        public static final String COLUMN_NAME_BATCH_UUID = "batch";
+        public static final String COLUMN_NAME_EXTRA_DATA = "extra";
 
         public static String getEscapedTableName(String channel) {
             return DatabaseUtils.sqlEscapeString(TABLE_NAME_PREFIX + channel);

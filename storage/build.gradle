@@ -47,5 +47,6 @@ dependencies {
     })
     implementation 'com.android.support:appcompat-v7:25.3.1'
     implementation 'io.mrarm:chatlib:1.0-SNAPSHOT'
+    compile 'com.google.code.gson:gson:2.8.1'
     testImplementation 'junit:junit:4.12'
 }
