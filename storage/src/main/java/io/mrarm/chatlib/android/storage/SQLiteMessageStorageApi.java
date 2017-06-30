@@ -27,7 +27,8 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
 
     private final Handler handler = new Handler();
     private final SimpleRequestExecutor executor = new SimpleRequestExecutor();
-    private final List<MessageListener> listeners = new ArrayList<>();
+    private final List<MessageListener> globalListeners = new ArrayList<>();
+    private final Map<String, List<MessageListener>> listeners = new HashMap<>();
     final Map<Long, SQLiteMessageStorageFile> files = new HashMap<>();
     private final File directory;
     private SQLiteMessageStorageFile currentFile;
@@ -61,6 +62,10 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
         }
     }
 
+    private SQLiteMessageStorageFile getCurrentFile() {
+        return openFileFor(new Date(), false);
+    }
+
     public void close() {
         synchronized (files) {
             for (SQLiteMessageStorageFile file : files.values()) {
@@ -71,37 +76,71 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     }
 
     @Override
-    public Future<Void> addMessage(String channel, MessageInfo messageInfo, ResponseCallback<Void> responseCallback, ResponseErrorCallback responseErrorCallback) {
+    public Future<Void> addMessage(String channel, MessageInfo messageInfo, ResponseCallback<Void> callback, ResponseErrorCallback errorCallback) {
         return executor.queue(() -> {
             openFileFor(messageInfo.getDate(), false).addMessage(channel, messageInfo);
+            synchronized (listeners) {
+                for (MessageListener listener : globalListeners)
+                    listener.onMessage(channel, messageInfo);
+                if (listeners.containsKey(channel)) {
+                    for (MessageListener listener : listeners.get(channel))
+                        listener.onMessage(channel, messageInfo);
+                }
+            }
             return null;
-        }, responseCallback, responseErrorCallback);
+        }, callback, errorCallback);
     }
 
     @Override
-    public Future<MessageList> getMessages(String s, int i, MessageListAfterIdentifier messageListAfterIdentifier, ResponseCallback<MessageList> responseCallback, ResponseErrorCallback responseErrorCallback) {
+    public Future<MessageList> getMessages(String channel, int count, MessageListAfterIdentifier after, ResponseCallback<MessageList> callback, ResponseErrorCallback errorCallback) {
         return null;
     }
 
     @Override
-    public MessageListAfterIdentifier getMessageListAfterIdentifier(String s, int i, MessageListAfterIdentifier messageListAfterIdentifier) {
+    public MessageListAfterIdentifier getMessageListAfterIdentifier(String channel, int count, MessageListAfterIdentifier after) {
+        MyMessageListAfterIdentifier ret = new MyMessageListAfterIdentifier();
+        if (after != null && after instanceof MyMessageListAfterIdentifier) {
+            MyMessageListAfterIdentifier c = (MyMessageListAfterIdentifier) after;
+            ret.file = c.file;
+            ret.offset = c.offset;
+        } else {
+            ret.file = getCurrentFile();
+        }
+        ret.offset += count;
         return null;
     }
 
     @Override
-    public Future<Void> subscribeChannelMessages(String s, MessageListener messageListener, ResponseCallback<Void> responseCallback, ResponseErrorCallback responseErrorCallback) {
+    public Future<Void> subscribeChannelMessages(String channel, MessageListener messageListener, ResponseCallback<Void> callback, ResponseErrorCallback errorCallback) {
         synchronized (listeners) {
-            listeners.add(messageListener);
+            if (channel != null) {
+                if (!listeners.containsKey(channel))
+                    listeners.put(channel, new ArrayList<>());
+                listeners.get(channel).add(messageListener);
+            } else
+                globalListeners.add(messageListener);
         }
-        return SimpleRequestExecutor.run(() -> null, responseCallback, responseErrorCallback);
+        return SimpleRequestExecutor.run(() -> null, callback, errorCallback);
     }
 
     @Override
-    public Future<Void> unsubscribeChannelMessages(String s, MessageListener messageListener, ResponseCallback<Void> responseCallback, ResponseErrorCallback responseErrorCallback) {
+    public Future<Void> unsubscribeChannelMessages(String channel, MessageListener messageListener, ResponseCallback<Void> callback, ResponseErrorCallback errorCallback) {
         synchronized (listeners) {
-            listeners.remove(messageListener);
+            if (channel != null) {
+                if (listeners.containsKey(channel))
+                    listeners.get(channel).remove(messageListener);
+            } else
+                globalListeners.remove(messageListener);
         }
-        return SimpleRequestExecutor.run(() -> null, responseCallback, responseErrorCallback);
+        return SimpleRequestExecutor.run(() -> null, callback, errorCallback);
+    }
+
+    static class MyMessageListAfterIdentifier implements MessageListAfterIdentifier {
+
+        public SQLiteMessageStorageFile file;
+        public int offset;
+
+
     }
 
 }
