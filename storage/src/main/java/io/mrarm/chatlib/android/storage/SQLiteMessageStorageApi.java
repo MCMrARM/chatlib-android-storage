@@ -39,6 +39,7 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
 
     public SQLiteMessageStorageApi(File directory) {
         this.directory = directory;
+        directory.mkdirs();
         for (File child : directory.listFiles()) {
             if (child.isFile()) {
                 try {

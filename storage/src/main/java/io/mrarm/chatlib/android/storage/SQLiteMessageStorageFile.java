@@ -116,14 +116,15 @@ public class SQLiteMessageStorageFile {
 
             String tableName = MessagesContract.MessageEntry.getEscapedTableName(channel);
             StringBuilder query = new StringBuilder();
-            query.append("SELECT (" +
+            query.append("SELECT " +
+                    MessagesContract.MessageEntry._ID + "," +
                     MessagesContract.MessageEntry.COLUMN_NAME_SENDER_DATA + "," +
                     MessagesContract.MessageEntry.COLUMN_NAME_SENDER_UUID + "," +
                     MessagesContract.MessageEntry.COLUMN_NAME_DATE + "," +
                     MessagesContract.MessageEntry.COLUMN_NAME_TEXT + "," +
                     MessagesContract.MessageEntry.COLUMN_NAME_TYPE + "," +
                     MessagesContract.MessageEntry.COLUMN_NAME_EXTRA_DATA +
-                    ") FROM ");
+                    " FROM ");
             query.append(tableName);
             if (id != -1) {
                 query.append(" WHERE " + MessagesContract.MessageEntry._ID + "<");
@@ -138,6 +139,7 @@ public class SQLiteMessageStorageFile {
             }
             Cursor cursor = database.rawQuery(query.toString(), null);
             List<MessageInfo> ret = new ArrayList<>(cursor.getCount());
+            int newAfterId = cursor.getInt(0);
             while (cursor.moveToNext()) {
                 ret.add(MessageStorageHelper.deserializeMessage(
                         MessageStorageHelper.deserializeSenderInfo(cursor.getString(1), MessageStorageHelper.bytesToUUID(cursor.getBlob(2))),
@@ -147,7 +149,7 @@ public class SQLiteMessageStorageFile {
                         cursor.getString(6)
                 ));
             }
-            return new MessageQueryResult(ret, cursor.getInt(5));
+            return new MessageQueryResult(ret, newAfterId);
         }
     }
 
@@ -181,7 +183,10 @@ public class SQLiteMessageStorageFile {
             statement.bindString(1, MessageStorageHelper.serializeSenderInfo(message.getSender()));
             statement.bindBlob(2, MessageStorageHelper.uuidToBytes(message.getSender().getUserUUID()));
             statement.bindLong(3, message.getDate().getTime());
-            statement.bindString(4, message.getMessage());
+            if (message.getMessage() == null)
+                statement.bindNull(4);
+            else
+                statement.bindString(4, message.getMessage());
             statement.bindLong(5, message.getType().asInt());
             statement.bindString(6, MessageStorageHelper.serializeExtraData(message));
             statement.execute();

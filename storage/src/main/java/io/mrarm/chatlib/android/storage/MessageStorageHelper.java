@@ -39,7 +39,7 @@ class MessageStorageHelper {
     }
 
     static String serializeSenderInfo(MessageSenderInfo sender) {
-        return sender.getNickPrefixes().toString() + " " + sender.getNick() + "!" + sender.getUser() + "@" + sender.getHost();
+        return (sender.getNickPrefixes() == null ? "" : sender.getNickPrefixes().toString()) + " " + sender.getNick() + "!" + sender.getUser() + "@" + sender.getHost();
     }
 
     static MessageSenderInfo deserializeSenderInfo(String serialized, UUID uuid) {
