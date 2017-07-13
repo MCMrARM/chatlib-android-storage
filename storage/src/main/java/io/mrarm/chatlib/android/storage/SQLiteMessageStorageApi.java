@@ -15,6 +15,8 @@ import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -26,14 +28,14 @@ import java.util.concurrent.Future;
 
 public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
 
-    private static final SimpleDateFormat fileNameFormat = new SimpleDateFormat("'messages-'YYYY-MM-dd'.db'", Locale.getDefault());
+    private static final SimpleDateFormat fileNameFormat = new SimpleDateFormat("'messages-'yyyy-MM-dd'.db'", Locale.getDefault());
 
     private final Handler handler = new Handler();
     private final SimpleRequestExecutor executor = new SimpleRequestExecutor();
     private final List<MessageListener> globalListeners = new ArrayList<>();
     private final Map<String, List<MessageListener>> listeners = new HashMap<>();
     final Map<Long, SQLiteMessageStorageFile> files = new HashMap<>();
-    private final SortedSet<Long> availableFiles = new TreeSet<>();
+    private final SortedSet<Long> availableFiles = new TreeSet<>(Collections.reverseOrder());
     private final File directory;
     private SQLiteMessageStorageFile currentFile;
 
@@ -55,12 +57,15 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     }
 
     private long getDateIdentifier(Date date) {
-        return date.getTime() / 1000 / 60 / 60 / 24;
+        Calendar c = Calendar.getInstance();
+        c.setTime(date);
+        return c.get(Calendar.DATE) + c.get(Calendar.MONTH) * 32 + c.get(Calendar.YEAR) * 32 * 12;
     }
 
     private File getFilePathFor(long dateId) {
-        Date newDate = new Date(dateId * 1000 * 60 * 60 * 24);
-        return new File(directory, fileNameFormat.format(newDate));
+        Calendar c = Calendar.getInstance();
+        c.set((int) (dateId / 32 / 12), (int) ((dateId / 32) % 12), (int) (dateId % 32));
+        return new File(directory, fileNameFormat.format(c.getTime()));
     }
 
     private long getDateIdFromFileName(String fileName) throws ParseException {
@@ -119,26 +124,23 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
             SQLiteMessageStorageFile file = openFileFor(fileDateId, true);
             MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count);
             file.removeReference();
+            int afterId = result.getAfterId();
             if (result.getMessages().size() == count)
-                return new MessageList(result.getMessages(), new MyMessageListAfterIdentifier(fileDateId, result.getAfterId(), 0));
+                return new MessageList(result.getMessages(), afterId == -1 ? null : new MyMessageListAfterIdentifier(fileDateId, afterId, 0));
             List<MessageInfo> ret = new ArrayList<>();
             ret.addAll(result.getMessages());
 
-            int afterId = result.getAfterId();
-            for (long i : availableFiles.tailSet(fileDateId)) {
+            for (long i : availableFiles.tailSet(fileDateId - 1)) {
                 file = openFileFor(i, true);
                 result = file.getMessages(channel, -1, 0, count - ret.size());
                 file.removeReference();
                 ret.addAll(0, result.getMessages());
+                afterId = result.getAfterId();
                 if (result.getMessages().size() == count)
-                    return new MessageList(ret, new MyMessageListAfterIdentifier(i, result.getAfterId(), 0));
-                if (result.getAfterId() != -1) {
-                    fileDateId = i;
-                    afterId = result.getAfterId();
-                }
+                    return new MessageList(ret, afterId == -1 ? null : new MyMessageListAfterIdentifier(i, afterId, 0));
             }
 
-            return new MessageList(ret, new MyMessageListAfterIdentifier(fileDateId, afterId, 0));
+            return new MessageList(ret, null);
         }, callback, errorCallback);
     }
 
