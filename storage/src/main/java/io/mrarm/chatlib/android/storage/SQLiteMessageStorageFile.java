@@ -2,6 +2,7 @@ package io.mrarm.chatlib.android.storage;
 
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteStatement;
 
 import com.google.gson.Gson;
@@ -137,20 +138,26 @@ public class SQLiteMessageStorageFile {
                 query.append(" OFFSET ");
                 query.append(offset);
             }
-            Cursor cursor = database.rawQuery(query.toString(), null);
-            List<MessageInfo> ret = new ArrayList<>(cursor.getCount());
-            cursor.moveToLast();
-            cursor.moveToNext();
-            while (cursor.moveToPrevious()) {
-                ret.add(MessageStorageHelper.deserializeMessage(
-                        MessageStorageHelper.deserializeSenderInfo(cursor.getString(1), MessageStorageHelper.bytesToUUID(cursor.getBlob(2))),
-                        new Date(cursor.getLong(3)),
-                        cursor.getString(4),
-                        cursor.getInt(5),
-                        cursor.getString(6)
-                ));
+            try {
+                Cursor cursor = database.rawQuery(query.toString(), null);
+                List<MessageInfo> ret = new ArrayList<>(cursor.getCount());
+                cursor.moveToLast();
+                cursor.moveToNext();
+                while (cursor.moveToPrevious()) {
+                    ret.add(MessageStorageHelper.deserializeMessage(
+                            MessageStorageHelper.deserializeSenderInfo(cursor.getString(1), MessageStorageHelper.bytesToUUID(cursor.getBlob(2))),
+                            new Date(cursor.getLong(3)),
+                            cursor.getString(4),
+                            cursor.getInt(5),
+                            cursor.getString(6)
+                    ));
+                }
+                int after = cursor.moveToLast() ? cursor.getInt(0) : -1;
+                cursor.close();
+                return new MessageQueryResult(ret, after);
+            } catch (SQLiteException e) {
+                return null;
             }
-            return new MessageQueryResult(ret, cursor.moveToLast() ? cursor.getInt(0) : -1);
         }
     }
 
