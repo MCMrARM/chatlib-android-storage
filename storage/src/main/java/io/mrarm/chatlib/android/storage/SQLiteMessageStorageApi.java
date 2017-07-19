@@ -124,11 +124,13 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
             SQLiteMessageStorageFile file = openFileFor(fileDateId, true);
             MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count);
             file.removeReference();
-            int afterId = result.getAfterId();
-            if (result.getMessages().size() == count)
-                return new MessageList(result.getMessages(), afterId == -1 ? null : new MyMessageListAfterIdentifier(fileDateId, afterId, 0));
             List<MessageInfo> ret = new ArrayList<>();
-            ret.addAll(result.getMessages());
+            if (result != null) {
+                int afterId = result.getAfterId();
+                if (result.getMessages().size() == count)
+                    return new MessageList(result.getMessages(), afterId == -1 ? null : new MyMessageListAfterIdentifier(fileDateId, afterId, 0));
+                ret.addAll(result.getMessages());
+            }
 
             for (long i : availableFiles.tailSet(fileDateId - 1)) {
                 file = openFileFor(i, true);
@@ -136,7 +138,7 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
                 file.removeReference();
                 if (result != null) {
                     ret.addAll(0, result.getMessages());
-                    afterId = result.getAfterId();
+                    int afterId = result.getAfterId();
                     if (result.getMessages().size() == count)
                         return new MessageList(ret, afterId == -1 ? null : new MyMessageListAfterIdentifier(i, afterId, 0));
                 }
