@@ -101,7 +101,7 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     @Override
     public Future<Void> addMessage(String channel, MessageInfo messageInfo, ResponseCallback<Void> callback, ResponseErrorCallback errorCallback) {
         return executor.queue(() -> {
-            SQLiteMessageStorageFile file = openFileFor(messageInfo.getDate(), false);
+            SQLiteMessageStorageFile file = openFileFor(new Date(), false);
             file.addMessage(channel, messageInfo);
             file.removeReference();
             synchronized (listeners) {
