@@ -41,15 +41,7 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
 
     public SQLiteMessageStorageApi(File directory) {
         this.directory = directory;
-        directory.mkdirs();
-        for (File child : directory.listFiles()) {
-            if (child.isFile()) {
-                try {
-                    availableFiles.add(getDateIdFromFileName(child.getName()));
-                } catch (ParseException ignored) {
-                }
-            }
-        }
+        open();
     }
 
     Handler getHandler() {
@@ -87,6 +79,21 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
 
     private SQLiteMessageStorageFile openFileFor(Date date, boolean readOnly) {
         return openFileFor(getDateIdentifier(date), readOnly);
+    }
+
+    public void open() {
+        synchronized (files) {
+            directory.mkdirs();
+            availableFiles.clear();
+            for (File child : directory.listFiles()) {
+                if (child.isFile()) {
+                    try {
+                        availableFiles.add(getDateIdFromFileName(child.getName()));
+                    } catch (ParseException ignored) {
+                    }
+                }
+            }
+        }
     }
 
     public void close() {
