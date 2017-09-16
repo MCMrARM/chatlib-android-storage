@@ -146,7 +146,7 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
                 if (result != null) {
                     ret.addAll(0, result.getMessages());
                     int afterId = result.getAfterId();
-                    if (result.getMessages().size() == count)
+                    if (ret.size() == count)
                         return new MessageList(ret, afterId == -1 ? null : new MyMessageListAfterIdentifier(i, afterId, 0));
                 }
             }
