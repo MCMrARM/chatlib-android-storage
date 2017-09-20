@@ -5,19 +5,15 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteStatement;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import io.mrarm.chatlib.android.storage.contract.MessagesContract;
+import io.mrarm.chatlib.dto.MessageFilterOptions;
 import io.mrarm.chatlib.dto.MessageInfo;
 
 public class SQLiteMessageStorageFile {
@@ -110,7 +106,44 @@ public class SQLiteMessageStorageFile {
         //
     }
 
-    public MessageQueryResult getMessages(String channel, int id, int offset, int limit) {
+    private boolean appendWhereOrAnd(StringBuilder query, boolean hasAppendedWhere) {
+        if (hasAppendedWhere)
+            query.append(" AND ");
+        else
+            query.append(" WHERE ");
+        return true;
+    }
+
+    private void appendFilterQuery(StringBuilder query, MessageFilterOptions options,
+                                   boolean hasAppendedWhere) {
+        if (options.excludeMessageTypes != null) {
+            hasAppendedWhere = appendWhereOrAnd(query, hasAppendedWhere);
+            query.append(MessagesContract.MessageEntry.COLUMN_NAME_TYPE + "NOT IN(");
+            boolean f = true;
+            for (MessageInfo.MessageType type : options.excludeMessageTypes) {
+                if (!f)
+                    query.append(',');
+                query.append(type.asInt());
+                f = false;
+            }
+            query.append(")");
+        }
+        if (options.restrictToMessageTypes != null) {
+            hasAppendedWhere = appendWhereOrAnd(query, hasAppendedWhere);
+            query.append(MessagesContract.MessageEntry.COLUMN_NAME_TYPE + " IN(");
+            boolean f = true;
+            for (MessageInfo.MessageType type : options.restrictToMessageTypes) {
+                if (!f)
+                    query.append(',');
+                query.append(type.asInt());
+                f = false;
+            }
+            query.append(")");
+        }
+    }
+
+    public MessageQueryResult getMessages(String channel, int id, int offset, int limit,
+                                          MessageFilterOptions filterOptions) {
         synchronized (this) {
             if (database == null)
                 openDatabase();
@@ -127,9 +160,14 @@ public class SQLiteMessageStorageFile {
                     MessagesContract.MessageEntry.COLUMN_NAME_EXTRA_DATA +
                     " FROM ");
             query.append(tableName);
+            boolean hasAppendedWhere = false;
             if (id != -1) {
                 query.append(" WHERE " + MessagesContract.MessageEntry._ID + "<");
                 query.append(id);
+                hasAppendedWhere = true;
+            }
+            if (filterOptions != null) {
+                appendFilterQuery(query, filterOptions, hasAppendedWhere);
             }
             query.append(" ORDER BY " + MessagesContract.MessageEntry._ID + " DESC");
             query.append(" LIMIT ");

@@ -4,6 +4,7 @@ import android.os.Handler;
 
 import io.mrarm.chatlib.ResponseCallback;
 import io.mrarm.chatlib.ResponseErrorCallback;
+import io.mrarm.chatlib.dto.MessageFilterOptions;
 import io.mrarm.chatlib.dto.MessageInfo;
 import io.mrarm.chatlib.dto.MessageList;
 import io.mrarm.chatlib.dto.MessageListAfterIdentifier;
@@ -124,12 +125,12 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     }
 
     @Override
-    public Future<MessageList> getMessages(String channel, int count, MessageListAfterIdentifier after, ResponseCallback<MessageList> callback, ResponseErrorCallback errorCallback) {
+    public Future<MessageList> getMessages(String channel, int count, MessageFilterOptions options, MessageListAfterIdentifier after, ResponseCallback<MessageList> callback, ResponseErrorCallback errorCallback) {
         return executor.queue(() -> {
             MyMessageListAfterIdentifier a = (MyMessageListAfterIdentifier) after;
             long fileDateId = (a == null ? getDateIdentifier(new Date()) : a.fileDateId);
             SQLiteMessageStorageFile file = openFileFor(fileDateId, true);
-            MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count);
+            MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count, options);
             file.removeReference();
             List<MessageInfo> ret = new ArrayList<>();
             if (result != null) {
@@ -141,7 +142,7 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
 
             for (long i : availableFiles.tailSet(fileDateId - 1)) {
                 file = openFileFor(i, true);
-                result = file.getMessages(channel, -1, 0, count - ret.size());
+                result = file.getMessages(channel, -1, 0, count - ret.size(), options);
                 file.removeReference();
                 if (result != null) {
                     ret.addAll(0, result.getMessages());
@@ -156,7 +157,9 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     }
 
     @Override
-    public MessageListAfterIdentifier getMessageListAfterIdentifier(String channel, int count, MessageListAfterIdentifier after) {
+    public MessageListAfterIdentifier getMessageListAfterIdentifier(String channel, int count, MessageFilterOptions options, MessageListAfterIdentifier after) {
+        if (options != null)
+            throw new UnsupportedOperationException();
         MyMessageListAfterIdentifier ret = new MyMessageListAfterIdentifier();
         if (after != null && after instanceof MyMessageListAfterIdentifier) {
             MyMessageListAfterIdentifier c = (MyMessageListAfterIdentifier) after;
