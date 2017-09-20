@@ -118,7 +118,7 @@ public class SQLiteMessageStorageFile {
                                    boolean hasAppendedWhere) {
         if (options.excludeMessageTypes != null) {
             hasAppendedWhere = appendWhereOrAnd(query, hasAppendedWhere);
-            query.append(MessagesContract.MessageEntry.COLUMN_NAME_TYPE + "NOT IN(");
+            query.append(MessagesContract.MessageEntry.COLUMN_NAME_TYPE + " NOT IN(");
             boolean f = true;
             for (MessageInfo.MessageType type : options.excludeMessageTypes) {
                 if (!f)
