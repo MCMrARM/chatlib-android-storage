@@ -45,7 +45,7 @@ dependencies {
     androidTestImplementation('com.android.support.test.espresso:espresso-core:2.2.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    implementation 'io.mrarm:chatlib:1.0-SNAPSHOT'
+    implementation 'com.github.mcmrarm:chatlib:0.1.0'
     compile 'com.google.code.gson:gson:2.8.1'
     testImplementation 'junit:junit:4.12'
 }
