@@ -64,14 +64,14 @@ public class SQLiteMessageStorageFile {
     void close(boolean deleteFromOwner) {
         synchronized (this) {
             removed = true;
+            if (database != null)
+                database.close();
             if (deleteFromOwner) {
                 synchronized (owner.files) {
                     if (owner.files.get(key) == SQLiteMessageStorageFile.this)
                         owner.files.remove(key);
                 }
             }
-            if (database != null)
-                database.close();
         }
     }
 
