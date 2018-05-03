@@ -73,6 +73,7 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
             if (!readOnly)
                 availableFiles.add(dateId);
             file = new SQLiteMessageStorageFile(this, dateId, getFilePathFor(dateId), readOnly);
+            file.addReference();
             files.put(dateId, file);
             return file;
         }

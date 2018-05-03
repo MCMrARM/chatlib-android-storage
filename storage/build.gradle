@@ -6,7 +6,7 @@ version = 'master-SNAPSHOT'
 
 android {
     compileSdkVersion 27
-    buildToolsVersion "27.0.0"
+    buildToolsVersion "27.0.3"
 
     defaultConfig {
         minSdkVersion 15
@@ -34,7 +34,7 @@ dependencies {
     androidTestImplementation('com.android.support.test.espresso:espresso-core:2.2.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    implementation 'com.github.mcmrarm:chatlib:0.1.0'
-    compile 'com.google.code.gson:gson:2.8.1'
+    implementation 'com.github.mcmrarm:chatlib:0.1.1'
+    compile 'com.google.code.gson:gson:2.8.2'
     testImplementation 'junit:junit:4.12'
 }
