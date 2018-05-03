@@ -1,6 +1,7 @@
 package io.mrarm.chatlib.android.storage;
 
 import android.database.Cursor;
+import android.database.sqlite.SQLiteCantOpenDatabaseException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteStatement;
@@ -30,6 +31,7 @@ public class SQLiteMessageStorageFile {
     private final File file;
     private boolean readOnly;
     private SQLiteDatabase database;
+    private boolean triedOpen = false;
     private final Map<String, SQLiteStatement> createMessageStatements = new HashMap<>();
 
     private Runnable removeRunnable = () -> close(true);
@@ -85,6 +87,22 @@ public class SQLiteMessageStorageFile {
                 readOnly = false;
                 openDatabase();
             }
+        }
+    }
+
+    private boolean requestRead() {
+        synchronized (this) {
+            if (triedOpen)
+                return database != null;
+
+            triedOpen = true;
+            try {
+                openDatabase();
+            } catch (SQLiteCantOpenDatabaseException e) {
+                e.printStackTrace();
+                return false;
+            }
+            return true;
         }
     }
 
@@ -145,8 +163,8 @@ public class SQLiteMessageStorageFile {
     public MessageQueryResult getMessages(String channel, int id, int offset, int limit,
                                           MessageFilterOptions filterOptions) {
         synchronized (this) {
-            if (database == null)
-                openDatabase();
+            if (!requestRead())
+                return null;
 
             String tableName = MessagesContract.MessageEntry.getEscapedTableName(channel);
             StringBuilder query = new StringBuilder();
