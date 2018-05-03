@@ -2,10 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/chatlib-android.iml" filepath="$PROJECT_DIR$/chatlib-android.iml" />
       <module fileurl="file://$PROJECT_DIR$/chatlib-android-storage.iml" filepath="$PROJECT_DIR$/chatlib-android-storage.iml" />
       <module fileurl="file://$PROJECT_DIR$/storage/chatlib-android-storage-chatlib-android-storage.iml" filepath="$PROJECT_DIR$/storage/chatlib-android-storage-chatlib-android-storage.iml" />
-      <module fileurl="file://$PROJECT_DIR$/core/core.iml" filepath="$PROJECT_DIR$/core/core.iml" />
     </modules>
   </component>
 </project>
