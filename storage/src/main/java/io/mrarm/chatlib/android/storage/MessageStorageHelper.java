@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 import io.mrarm.chatlib.dto.ChannelModeMessageInfo;
+import io.mrarm.chatlib.dto.KickMessageInfo;
 import io.mrarm.chatlib.dto.MessageInfo;
 import io.mrarm.chatlib.dto.MessageSenderInfo;
 import io.mrarm.chatlib.dto.NickChangeMessageInfo;
@@ -21,6 +22,7 @@ class MessageStorageHelper {
 
     private static final String PROP_BATCH = "batch";
     private static final String PROP_NICKCHANGE_NEWNICK = "newNick";
+    private static final String PROP_KICK_TARGET = "kickedNick";
     private static final String PROP_CHANNELMODE_ENTRIES = "entries";
 
 
@@ -36,6 +38,10 @@ class MessageStorageHelper {
         JsonObject o = gson.fromJson(extraData, JsonObject.class);
         if (type == MessageInfo.MessageType.NICK_CHANGE)
             return new NickChangeMessageInfo(sender, date, o.get(PROP_NICKCHANGE_NEWNICK).getAsString());
+
+        if (type == MessageInfo.MessageType.KICK)
+            return new KickMessageInfo(sender, date, o.get(PROP_KICK_TARGET).getAsString(), text);
+
         MessageInfo.Builder builder;
         if (type == MessageInfo.MessageType.MODE) {
             JsonArray entriesArray = o.get(PROP_CHANNELMODE_ENTRIES).getAsJsonArray();
@@ -81,6 +87,10 @@ class MessageStorageHelper {
         if (info instanceof ChannelModeMessageInfo) {
             ChannelModeMessageInfo modeMessage = ((ChannelModeMessageInfo) info);
             object.add(PROP_CHANNELMODE_ENTRIES, gson.toJsonTree(modeMessage.getEntries()));
+        }
+        if (info instanceof KickMessageInfo) {
+            KickMessageInfo kickMessage = ((KickMessageInfo) info);
+            object.addProperty(PROP_KICK_TARGET, kickMessage.getKickedNick());
         }
         return gson.toJson(object);
     }
