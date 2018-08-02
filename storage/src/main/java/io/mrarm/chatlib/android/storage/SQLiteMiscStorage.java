@@ -9,7 +9,7 @@ import io.mrarm.chatlib.util.SimpleRequestExecutor;
 
 public class SQLiteMiscStorage {
 
-    private static final int CURRENT_VERSION = 1;
+    private static final int CURRENT_VERSION = 2;
 
     private SQLiteDatabase database;
     private final SimpleRequestExecutor executor = new SimpleRequestExecutor();

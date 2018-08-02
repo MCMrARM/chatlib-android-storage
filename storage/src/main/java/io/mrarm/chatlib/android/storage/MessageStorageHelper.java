@@ -17,6 +17,7 @@ import io.mrarm.chatlib.dto.MessageInfo;
 import io.mrarm.chatlib.dto.MessageSenderInfo;
 import io.mrarm.chatlib.dto.NickChangeMessageInfo;
 import io.mrarm.chatlib.dto.NickPrefixList;
+import io.mrarm.chatlib.dto.TopicWhoTimeMessageInfo;
 
 class MessageStorageHelper {
 
@@ -24,6 +25,8 @@ class MessageStorageHelper {
     private static final String PROP_NICKCHANGE_NEWNICK = "newNick";
     private static final String PROP_KICK_TARGET = "kickedNick";
     private static final String PROP_CHANNELMODE_ENTRIES = "entries";
+    private static final String PROP_TOPICWHOTIME_SET_BY = "setBy";
+    private static final String PROP_TOPICWHOTIME_SET_ON = "setOn";
 
 
     private static final Gson gson = new Gson();
@@ -36,9 +39,9 @@ class MessageStorageHelper {
                 type = t;
         }
         JsonObject o = gson.fromJson(extraData, JsonObject.class);
+        // TODO: These should be moved to builders as well?
         if (type == MessageInfo.MessageType.NICK_CHANGE)
             return new NickChangeMessageInfo(sender, date, o.get(PROP_NICKCHANGE_NEWNICK).getAsString());
-
         if (type == MessageInfo.MessageType.KICK)
             return new KickMessageInfo(sender, date, o.get(PROP_KICK_TARGET).getAsString(), text);
 
@@ -49,6 +52,10 @@ class MessageStorageHelper {
             for (JsonElement e : entriesArray)
                 entries.add(gson.fromJson(e.getAsJsonObject(), ChannelModeMessageInfo.Entry.class));
             builder = new ChannelModeMessageInfo.Builder(sender, entries);
+        } else if (type == MessageInfo.MessageType.TOPIC_WHOTIME) {
+            builder = new TopicWhoTimeMessageInfo.Builder(sender,
+                    o.get(PROP_TOPICWHOTIME_SET_BY).getAsString(),
+                    new Date(o.get(PROP_TOPICWHOTIME_SET_ON).getAsLong() * 1000L));
         } else {
             builder = new MessageInfo.Builder(sender, text, type);
         }
@@ -91,6 +98,12 @@ class MessageStorageHelper {
         if (info instanceof KickMessageInfo) {
             KickMessageInfo kickMessage = ((KickMessageInfo) info);
             object.addProperty(PROP_KICK_TARGET, kickMessage.getKickedNick());
+        }
+        if (info instanceof TopicWhoTimeMessageInfo) {
+            TopicWhoTimeMessageInfo topicMessage = ((TopicWhoTimeMessageInfo) info);
+            object.addProperty(PROP_TOPICWHOTIME_SET_BY, topicMessage.getSetByNick());
+            object.addProperty(PROP_TOPICWHOTIME_SET_ON,
+                    topicMessage.getSetOnDate().getTime() / 1000L);
         }
         return gson.toJson(object);
     }
