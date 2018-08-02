@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.concurrent.Future;
 
 import io.mrarm.chatlib.android.storage.contract.ChannelDataContract;
+import io.mrarm.chatlib.dto.MessageSenderInfo;
 import io.mrarm.chatlib.irc.ChannelDataStorage;
 
 public class SQLiteChannelDataStorage implements ChannelDataStorage {
@@ -50,14 +51,16 @@ public class SQLiteChannelDataStorage implements ChannelDataStorage {
             int topicSetOnColumn = cursor.getColumnIndex(
                     ChannelDataContract.ChannelEntry.COLUMN_NAME_TOPIC_SET_ON);
             String topic = cursor.getString(topicColumn);
-            String topicSetBy = cursor.getString(topicSetByColumn);
+            MessageSenderInfo topicSetBy = MessageStorageHelper.deserializeSenderInfo(
+                    cursor.getString(topicSetByColumn), null);
             long topicSetOn = cursor.getLong(topicSetOnColumn);
             return new StoredData(topic, topicSetBy, new Date(topicSetOn * 1000L));
         }, null, null);
     }
 
     @Override
-    public Future<Void> updateTopic(String channel, String topic, String setBy, Date setOn) {
+    public Future<Void> updateTopic(String channel, String topic, MessageSenderInfo setBy,
+                                    Date setOn) {
         return storage.getExecutor().queue(() -> {
             SQLiteDatabase db = storage.getDatabase();
             if (updateTopicStatement == null)
@@ -70,7 +73,8 @@ public class SQLiteChannelDataStorage implements ChannelDataStorage {
             updateTopicStatement.bindString(1, channel);
             updateTopicStatement.bindString(2, topic);
             if (setBy != null)
-                updateTopicStatement.bindString(3, setBy);
+                updateTopicStatement.bindString(3,
+                        MessageStorageHelper.serializeSenderInfo(setBy));
             else
                 updateTopicStatement.bindNull(3);
             if (setOn != null)

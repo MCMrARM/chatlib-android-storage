@@ -54,7 +54,7 @@ class MessageStorageHelper {
             builder = new ChannelModeMessageInfo.Builder(sender, entries);
         } else if (type == MessageInfo.MessageType.TOPIC_WHOTIME) {
             builder = new TopicWhoTimeMessageInfo.Builder(sender,
-                    o.get(PROP_TOPICWHOTIME_SET_BY).getAsString(),
+                    deserializeSenderInfo(o.get(PROP_TOPICWHOTIME_SET_BY).getAsString(), null),
                     new Date(o.get(PROP_TOPICWHOTIME_SET_ON).getAsLong() * 1000L));
         } else {
             builder = new MessageInfo.Builder(sender, text, type);
@@ -101,7 +101,8 @@ class MessageStorageHelper {
         }
         if (info instanceof TopicWhoTimeMessageInfo) {
             TopicWhoTimeMessageInfo topicMessage = ((TopicWhoTimeMessageInfo) info);
-            object.addProperty(PROP_TOPICWHOTIME_SET_BY, topicMessage.getSetByNick());
+            object.addProperty(PROP_TOPICWHOTIME_SET_BY,
+                    serializeSenderInfo(topicMessage.getSetBy()));
             object.addProperty(PROP_TOPICWHOTIME_SET_ON,
                     topicMessage.getSetOnDate().getTime() / 1000L);
         }
