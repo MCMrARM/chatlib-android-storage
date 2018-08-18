@@ -74,7 +74,7 @@ class MessageStorageHelper {
     }
 
     static MessageSenderInfo deserializeSenderInfo(String serialized, UUID uuid) {
-        if (serialized.equals(""))
+        if (serialized == null || serialized.equals(""))
             return null;
         int piof = serialized.indexOf(' ');
         String prefixes = serialized.substring(0, piof);
