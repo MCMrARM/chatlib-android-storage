@@ -158,23 +158,6 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     }
 
     @Override
-    public MessageListAfterIdentifier getMessageListAfterIdentifier(String channel, int count, MessageFilterOptions options, MessageListAfterIdentifier after) {
-        if (options != null)
-            throw new UnsupportedOperationException();
-        MyMessageListAfterIdentifier ret = new MyMessageListAfterIdentifier();
-        if (after != null && after instanceof MyMessageListAfterIdentifier) {
-            MyMessageListAfterIdentifier c = (MyMessageListAfterIdentifier) after;
-            ret.fileDateId = c.fileDateId;
-            ret.afterId = c.afterId;
-            ret.offset = c.offset;
-        } else {
-            ret.fileDateId = getDateIdentifier(new Date());
-        }
-        ret.offset += count;
-        return null;
-    }
-
-    @Override
     public Future<Void> subscribeChannelMessages(String channel, MessageListener messageListener, ResponseCallback<Void> callback, ResponseErrorCallback errorCallback) {
         synchronized (listeners) {
             if (channel != null) {
