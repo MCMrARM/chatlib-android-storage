@@ -30,6 +30,8 @@ import java.util.concurrent.Future;
 
 public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
 
+    private static final MyMessageIdParser MESSAGE_ID_PARSER = new MyMessageIdParser();
+
     private static final SimpleDateFormat fileNameFormat = new SimpleDateFormat("'messages-'yyyy-MM-dd'.db'", Locale.getDefault());
 
     private final Handler handler = new Handler();
@@ -214,6 +216,11 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
         return SimpleRequestExecutor.run(() -> null, callback, errorCallback);
     }
 
+    @Override
+    public MessageId.Parser getMessageIdParser() {
+        return getMessageIdParserInstance();
+    }
+
     static class MyMessageId implements MessageId {
 
         long fileDateId;
@@ -224,6 +231,22 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
             this.id = id;
         }
 
+        @Override
+        public String toString() {
+            return fileDateId + ":" + id;
+        }
+    }
+
+    static class MyMessageIdParser implements MessageId.Parser {
+
+        @Override
+        public MessageId parse(String str) {
+            int i = str.indexOf(':');
+            long fileDateId = Long.parseLong(str.substring(0, i));
+            long id = Long.parseLong(str.substring(i + 1));
+            return new MyMessageId(fileDateId, (int) id);
+        }
+
     }
 
     static class MyMessageListOlderIdentifier implements MessageListAfterIdentifier {
@@ -231,9 +254,6 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
         long fileDateId;
         int afterId = 1;
         int offset = 0;
-
-        MyMessageListOlderIdentifier() {
-        }
 
         MyMessageListOlderIdentifier(long fileDateId, int afterId, int offset) {
             this.fileDateId = fileDateId;
@@ -248,6 +268,10 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
         MyMessageListNewerIdentifier(long fileDateId, int afterId, int offset) {
             super(fileDateId, afterId, offset);
         }
+    }
+
+    public static MyMessageIdParser getMessageIdParserInstance() {
+        return MESSAGE_ID_PARSER;
     }
 
 }
