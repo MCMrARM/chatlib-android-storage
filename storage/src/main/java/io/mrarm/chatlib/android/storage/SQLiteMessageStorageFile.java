@@ -161,6 +161,7 @@ public class SQLiteMessageStorageFile {
     }
 
     public MessageQueryResult getMessages(String channel, int id, int offset, int limit,
+                                          boolean newer,
                                           MessageFilterOptions filterOptions) {
         synchronized (this) {
             if (!requestRead())
@@ -180,14 +181,16 @@ public class SQLiteMessageStorageFile {
             query.append(tableName);
             boolean hasAppendedWhere = false;
             if (id != -1) {
-                query.append(" WHERE " + MessagesContract.MessageEntry._ID + "<");
+                query.append(" WHERE " + MessagesContract.MessageEntry._ID);
+                query.append(newer ? '>' : '<');
                 query.append(id);
                 hasAppendedWhere = true;
             }
             if (filterOptions != null) {
                 appendFilterQuery(query, filterOptions, hasAppendedWhere);
             }
-            query.append(" ORDER BY " + MessagesContract.MessageEntry._ID + " DESC");
+            query.append(" ORDER BY " + MessagesContract.MessageEntry._ID);
+            query.append(newer ? " ASC" : " DESC");
             query.append(" LIMIT ");
             query.append(limit);
             if (offset != 0) {
@@ -197,9 +200,11 @@ public class SQLiteMessageStorageFile {
             try {
                 Cursor cursor = database.rawQuery(query.toString(), null);
                 List<MessageInfo> ret = new ArrayList<>(cursor.getCount());
-                cursor.moveToLast();
-                cursor.moveToNext();
-                while (cursor.moveToPrevious()) {
+                if (!newer) {
+                    cursor.moveToLast();
+                    cursor.moveToNext();
+                }
+                while (newer ? cursor.moveToNext() : cursor.moveToPrevious()) {
                     byte[] uuidBlob = cursor.getBlob(2);
                     ret.add(MessageStorageHelper.deserializeMessage(
                             uuidBlob != null ? MessageStorageHelper.deserializeSenderInfo(cursor.getString(1), MessageStorageHelper.bytesToUUID(uuidBlob)) : null,
@@ -218,7 +223,7 @@ public class SQLiteMessageStorageFile {
         }
     }
 
-    public void addMessage(String channel, MessageInfo message) {
+    public long addMessage(String channel, MessageInfo message) {
         synchronized (this) {
             requireWrite();
             SQLiteStatement statement = createMessageStatements.get(channel);
@@ -259,8 +264,9 @@ public class SQLiteMessageStorageFile {
                 statement.bindString(4, message.getMessage());
             statement.bindLong(5, message.getType().asInt());
             statement.bindString(6, MessageStorageHelper.serializeExtraData(message));
-            statement.execute();
+            long ret = statement.executeInsert();
             statement.clearBindings();
+            return ret;
         }
     }
 

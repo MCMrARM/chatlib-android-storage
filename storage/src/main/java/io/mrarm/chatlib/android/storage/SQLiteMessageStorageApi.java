@@ -5,6 +5,7 @@ import android.os.Handler;
 import io.mrarm.chatlib.ResponseCallback;
 import io.mrarm.chatlib.ResponseErrorCallback;
 import io.mrarm.chatlib.dto.MessageFilterOptions;
+import io.mrarm.chatlib.dto.MessageId;
 import io.mrarm.chatlib.dto.MessageInfo;
 import io.mrarm.chatlib.dto.MessageList;
 import io.mrarm.chatlib.dto.MessageListAfterIdentifier;
@@ -36,7 +37,8 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     private final List<MessageListener> globalListeners = new ArrayList<>();
     private final Map<String, List<MessageListener>> listeners = new HashMap<>();
     final Map<Long, SQLiteMessageStorageFile> files = new HashMap<>();
-    private final SortedSet<Long> availableFiles = new TreeSet<>(Collections.reverseOrder());
+    private final SortedSet<Long> availableFilesAsc = new TreeSet<>();
+    private final SortedSet<Long> availableFilesDesc = new TreeSet<>(Collections.reverseOrder());
     private final File directory;
     private SQLiteMessageStorageFile currentFile;
 
@@ -70,8 +72,10 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
             SQLiteMessageStorageFile file = files.get(dateId);
             if (file != null && file.addReference())
                 return file;
-            if (!readOnly)
-                availableFiles.add(dateId);
+            if (!readOnly) {
+                availableFilesAsc.add(dateId);
+                availableFilesDesc.add(dateId);
+            }
             file = new SQLiteMessageStorageFile(this, dateId, getFilePathFor(dateId), readOnly);
             file.addReference();
             files.put(dateId, file);
@@ -86,11 +90,14 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     public void open() {
         synchronized (files) {
             directory.mkdirs();
-            availableFiles.clear();
+            availableFilesAsc.clear();
+            availableFilesDesc.clear();
             for (File child : directory.listFiles()) {
                 if (child.isFile()) {
                     try {
-                        availableFiles.add(getDateIdFromFileName(child.getName()));
+                        long dateId = getDateIdFromFileName(child.getName());
+                        availableFilesAsc.add(dateId);
+                        availableFilesDesc.add(dateId);
                     } catch (ParseException ignored) {
                     }
                 }
@@ -110,50 +117,75 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     @Override
     public Future<Void> addMessage(String channel, MessageInfo messageInfo, ResponseCallback<Void> callback, ResponseErrorCallback errorCallback) {
         return executor.queue(() -> {
-            SQLiteMessageStorageFile file = openFileFor(new Date(), false);
-            file.addMessage(channel, messageInfo);
+            Date d = new Date();
+            SQLiteMessageStorageFile file = openFileFor(d, false);
+            long msgId = file.addMessage(channel, messageInfo);
+            MessageId mgsIdObj = new MyMessageId(getDateIdentifier(d), (int) msgId);
             file.removeReference();
             synchronized (listeners) {
                 for (MessageListener listener : globalListeners)
-                    listener.onMessage(channel, messageInfo);
+                    listener.onMessage(channel, messageInfo, mgsIdObj);
                 if (listeners.containsKey(channel)) {
                     for (MessageListener listener : listeners.get(channel))
-                        listener.onMessage(channel, messageInfo);
+                        listener.onMessage(channel, messageInfo, mgsIdObj);
                 }
             }
             return null;
         }, callback, errorCallback);
     }
 
+    private MessageList getMessagesImpl(String channel, int count, MessageFilterOptions options, MessageListAfterIdentifier after) {
+        MyMessageListOlderIdentifier a = (MyMessageListOlderIdentifier) after;
+        boolean isBefore = a instanceof MyMessageListNewerIdentifier;
+        MyMessageListNewerIdentifier newerId = null;
+        if (after != null)
+            newerId = new MyMessageListNewerIdentifier(a.fileDateId, a.afterId, a.offset);
+        long fileDateId = (a == null ? getDateIdentifier(new Date()) : a.fileDateId);
+        SQLiteMessageStorageFile file = openFileFor(fileDateId, true);
+        MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count, isBefore, options);
+        file.removeReference();
+        List<MessageInfo> ret = new ArrayList<>();
+        if (result != null) {
+            int afterId = result.getAfterId();
+            if (result.getMessages().size() == count)
+                return new MessageList(result.getMessages(), newerId, afterId == -1 ? null : new MyMessageListOlderIdentifier(fileDateId, afterId, 0));
+            ret.addAll(result.getMessages());
+        }
+
+        for (long i : (isBefore ? availableFilesAsc.tailSet(fileDateId + 1) : availableFilesDesc.tailSet(fileDateId - 1))) {
+            file = openFileFor(i, true);
+            result = file.getMessages(channel, -1, 0, count - ret.size(), isBefore, options);
+            file.removeReference();
+            if (result != null) {
+                if (isBefore)
+                    ret.addAll(result.getMessages());
+                else
+                    ret.addAll(0, result.getMessages());
+                int afterId = result.getAfterId();
+                if (ret.size() == count)
+                    return new MessageList(ret, newerId, afterId == -1 ? null : new MyMessageListOlderIdentifier(i, afterId, 0));
+            }
+        }
+
+        return new MessageList(ret, newerId, null);
+    }
+
     @Override
     public Future<MessageList> getMessages(String channel, int count, MessageFilterOptions options, MessageListAfterIdentifier after, ResponseCallback<MessageList> callback, ResponseErrorCallback errorCallback) {
+        return executor.queue(() -> getMessagesImpl(channel, count, options, after), callback, errorCallback);
+    }
+
+    @Override
+    public Future<MessageList> getMessagesNear(String s, MessageId messageId, MessageFilterOptions filter, ResponseCallback<MessageList> callback, ResponseErrorCallback errorCallback) {
         return executor.queue(() -> {
-            MyMessageListAfterIdentifier a = (MyMessageListAfterIdentifier) after;
-            long fileDateId = (a == null ? getDateIdentifier(new Date()) : a.fileDateId);
-            SQLiteMessageStorageFile file = openFileFor(fileDateId, true);
-            MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count, options);
-            file.removeReference();
-            List<MessageInfo> ret = new ArrayList<>();
-            if (result != null) {
-                int afterId = result.getAfterId();
-                if (result.getMessages().size() == count)
-                    return new MessageList(result.getMessages(), afterId == -1 ? null : new MyMessageListAfterIdentifier(fileDateId, afterId, 0));
-                ret.addAll(result.getMessages());
-            }
-
-            for (long i : availableFiles.tailSet(fileDateId - 1)) {
-                file = openFileFor(i, true);
-                result = file.getMessages(channel, -1, 0, count - ret.size(), options);
-                file.removeReference();
-                if (result != null) {
-                    ret.addAll(0, result.getMessages());
-                    int afterId = result.getAfterId();
-                    if (ret.size() == count)
-                        return new MessageList(ret, afterId == -1 ? null : new MyMessageListAfterIdentifier(i, afterId, 0));
-                }
-            }
-
-            return new MessageList(ret, null);
+            if (!(messageId instanceof MyMessageId))
+                throw new RuntimeException("Invalid message id type");
+            MyMessageId m = (MyMessageId) messageId;
+            MessageList older = getMessagesImpl(s, 50, filter, new MyMessageListOlderIdentifier(m.fileDateId, m.id, 0));
+            MessageList newer = getMessagesImpl(s, 50, filter, new MyMessageListNewerIdentifier(m.fileDateId, m.id - 1 /* include the current message */, 0));
+            List<MessageInfo> ret = older.getMessages(); // we can mutate it just fine, as we control the object
+            ret.addAll(newer.getMessages());
+            return new MessageList(ret, newer.getNewer(), older.getOlder());
         }, callback, errorCallback);
     }
 
@@ -182,22 +214,40 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
         return SimpleRequestExecutor.run(() -> null, callback, errorCallback);
     }
 
-    static class MyMessageListAfterIdentifier implements MessageListAfterIdentifier {
+    static class MyMessageId implements MessageId {
+
+        long fileDateId;
+        int id;
+
+        MyMessageId(long fileDateId, int id) {
+            this.fileDateId = fileDateId;
+            this.id = id;
+        }
+
+    }
+
+    static class MyMessageListOlderIdentifier implements MessageListAfterIdentifier {
 
         long fileDateId;
         int afterId = 1;
         int offset = 0;
 
-        MyMessageListAfterIdentifier() {
+        MyMessageListOlderIdentifier() {
         }
 
-        MyMessageListAfterIdentifier(long fileDateId, int afterId, int offset) {
+        MyMessageListOlderIdentifier(long fileDateId, int afterId, int offset) {
             this.fileDateId = fileDateId;
             this.afterId = afterId;
             this.offset = offset;
         }
 
+    }
 
+
+    static class MyMessageListNewerIdentifier extends MyMessageListOlderIdentifier {
+        MyMessageListNewerIdentifier(long fileDateId, int afterId, int offset) {
+            super(fileDateId, afterId, offset);
+        }
     }
 
 }
