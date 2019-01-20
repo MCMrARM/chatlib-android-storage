@@ -147,11 +147,13 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
         MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count, isBefore, options);
         file.removeReference();
         List<MessageInfo> ret = new ArrayList<>();
+        List<MessageId> retIds = new ArrayList<>();
         if (result != null) {
             int afterId = result.getAfterId();
             if (result.getMessages().size() == count)
-                return new MessageList(result.getMessages(), newerId, afterId == -1 ? null : new MyMessageListOlderIdentifier(fileDateId, afterId, 0));
+                return new MessageList(result.getMessages(), result.getMessageIds(), newerId, afterId == -1 ? null : new MyMessageListOlderIdentifier(fileDateId, afterId, 0));
             ret.addAll(result.getMessages());
+            retIds.addAll(result.getMessageIds());
         }
 
         for (long i : (isBefore ? availableFilesAsc.tailSet(fileDateId + 1) : availableFilesDesc.tailSet(fileDateId - 1))) {
@@ -159,17 +161,20 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
             result = file.getMessages(channel, -1, 0, count - ret.size(), isBefore, options);
             file.removeReference();
             if (result != null) {
-                if (isBefore)
+                if (isBefore) {
                     ret.addAll(result.getMessages());
-                else
+                    retIds.addAll(result.getMessageIds());
+                } else {
                     ret.addAll(0, result.getMessages());
+                    retIds.addAll(0, result.getMessageIds());
+                }
                 int afterId = result.getAfterId();
                 if (ret.size() == count)
-                    return new MessageList(ret, newerId, afterId == -1 ? null : new MyMessageListOlderIdentifier(i, afterId, 0));
+                    return new MessageList(ret, retIds, newerId, afterId == -1 ? null : new MyMessageListOlderIdentifier(i, afterId, 0));
             }
         }
 
-        return new MessageList(ret, newerId, null);
+        return new MessageList(ret, retIds, newerId, null);
     }
 
     @Override
@@ -186,8 +191,10 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
             MessageList older = getMessagesImpl(s, 50, filter, new MyMessageListOlderIdentifier(m.fileDateId, m.id, 0));
             MessageList newer = getMessagesImpl(s, 50, filter, new MyMessageListNewerIdentifier(m.fileDateId, m.id - 1 /* include the current message */, 0));
             List<MessageInfo> ret = older.getMessages(); // we can mutate it just fine, as we control the object
+            List<MessageId> retIds = older.getMessageIds();
             ret.addAll(newer.getMessages());
-            return new MessageList(ret, newer.getNewer(), older.getOlder());
+            retIds.addAll(newer.getMessageIds());
+            return new MessageList(ret, retIds, newer.getNewer(), older.getOlder());
         }, callback, errorCallback);
     }
 

@@ -15,6 +15,7 @@ import java.util.Map;
 
 import io.mrarm.chatlib.android.storage.contract.MessagesContract;
 import io.mrarm.chatlib.dto.MessageFilterOptions;
+import io.mrarm.chatlib.dto.MessageId;
 import io.mrarm.chatlib.dto.MessageInfo;
 
 public class SQLiteMessageStorageFile {
@@ -200,6 +201,7 @@ public class SQLiteMessageStorageFile {
             try {
                 Cursor cursor = database.rawQuery(query.toString(), null);
                 List<MessageInfo> ret = new ArrayList<>(cursor.getCount());
+                List<MessageId> retIds = new ArrayList<>(cursor.getCount());
                 if (!newer) {
                     cursor.moveToLast();
                     cursor.moveToNext();
@@ -213,10 +215,11 @@ public class SQLiteMessageStorageFile {
                             cursor.getInt(5),
                             cursor.getString(6)
                     ));
+                    retIds.add(new SQLiteMessageStorageApi.MyMessageId(key, cursor.getInt(0)));
                 }
                 int after = cursor.moveToLast() ? cursor.getInt(0) : -1;
                 cursor.close();
-                return new MessageQueryResult(ret, after);
+                return new MessageQueryResult(ret, retIds, after);
             } catch (SQLiteException e) {
                 return null;
             }
