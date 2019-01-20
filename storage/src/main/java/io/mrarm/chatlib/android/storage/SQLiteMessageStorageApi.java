@@ -242,6 +242,13 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
         public String toString() {
             return fileDateId + ":" + id;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof MyMessageId)
+                return fileDateId == ((MyMessageId) obj).fileDateId && id == ((MyMessageId) obj).id;
+            return false;
+        }
     }
 
     static class MyMessageIdParser implements MessageId.Parser {
