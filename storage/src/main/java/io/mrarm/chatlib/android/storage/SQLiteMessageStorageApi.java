@@ -138,30 +138,38 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
 
     private MessageList getMessagesImpl(String channel, int count, MessageFilterOptions options, MessageListAfterIdentifier after) {
         MyMessageListOlderIdentifier a = (MyMessageListOlderIdentifier) after;
-        boolean isBefore = a instanceof MyMessageListNewerIdentifier;
-        MyMessageListNewerIdentifier newerId = null;
-        if (after != null)
-            newerId = new MyMessageListNewerIdentifier(a.fileDateId, a.afterId, a.offset);
+        boolean isNewer = a instanceof MyMessageListNewerIdentifier;
+        MyMessageListOlderIdentifier otherId = null;
+        if (a != null) {
+            if (isNewer)
+                otherId = new MyMessageListOlderIdentifier(a.fileDateId, a.afterId, a.offset);
+            else
+                otherId = new MyMessageListNewerIdentifier(a.fileDateId, a.afterId, a.offset);
+        }
         long fileDateId = (a == null ? getDateIdentifier(new Date()) : a.fileDateId);
         SQLiteMessageStorageFile file = openFileFor(fileDateId, true);
-        MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count, isBefore, options);
+        MessageQueryResult result = file.getMessages(channel, (a == null ? -1 : a.afterId), (a == null ? 0 : a.offset), count, isNewer, options);
         file.removeReference();
         List<MessageInfo> ret = new ArrayList<>();
         List<MessageId> retIds = new ArrayList<>();
         if (result != null) {
             int afterId = result.getAfterId();
-            if (result.getMessages().size() == count)
-                return new MessageList(result.getMessages(), result.getMessageIds(), newerId, afterId == -1 ? null : new MyMessageListOlderIdentifier(fileDateId, afterId, 0));
+            if (result.getMessages().size() == count) {
+                if (isNewer)
+                    return new MessageList(result.getMessages(), result.getMessageIds(), new MyMessageListNewerIdentifier(fileDateId, afterId, 0), otherId);
+                else
+                    return new MessageList(result.getMessages(), result.getMessageIds(), otherId, afterId == -1 ? null : new MyMessageListOlderIdentifier(fileDateId, afterId, 0));
+            }
             ret.addAll(result.getMessages());
             retIds.addAll(result.getMessageIds());
         }
 
-        for (long i : (isBefore ? availableFilesAsc.tailSet(fileDateId + 1) : availableFilesDesc.tailSet(fileDateId - 1))) {
+        for (long i : (isNewer ? availableFilesAsc.tailSet(fileDateId + 1) : availableFilesDesc.tailSet(fileDateId - 1))) {
             file = openFileFor(i, true);
-            result = file.getMessages(channel, -1, 0, count - ret.size(), isBefore, options);
+            result = file.getMessages(channel, -1, 0, count - ret.size(), isNewer, options);
             file.removeReference();
             if (result != null) {
-                if (isBefore) {
+                if (isNewer) {
                     ret.addAll(result.getMessages());
                     retIds.addAll(result.getMessageIds());
                 } else {
@@ -169,12 +177,19 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
                     retIds.addAll(0, result.getMessageIds());
                 }
                 int afterId = result.getAfterId();
-                if (ret.size() == count)
-                    return new MessageList(ret, retIds, newerId, afterId == -1 ? null : new MyMessageListOlderIdentifier(i, afterId, 0));
+                if (ret.size() == count) {
+                    if (isNewer)
+                        return new MessageList(ret, retIds, afterId == -1 ? null : new MyMessageListNewerIdentifier(i, afterId, 0), otherId);
+                    else
+                        return new MessageList(ret, retIds, otherId, afterId == -1 ? null : new MyMessageListOlderIdentifier(i, afterId, 0));
+                }
             }
         }
 
-        return new MessageList(ret, retIds, newerId, null);
+        if (isNewer)
+            return new MessageList(ret, retIds, null, otherId);
+        else
+            return new MessageList(ret, retIds, otherId, null);
     }
 
     @Override
