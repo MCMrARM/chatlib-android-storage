@@ -28,6 +28,8 @@ class MessageStorageHelper {
     private static final String PROP_TOPICWHOTIME_SET_BY = "setBy";
     private static final String PROP_TOPICWHOTIME_SET_ON = "setOn";
 
+    static final int TYPE_DELETED = -1;
+
 
     private static final Gson gson = new Gson();
 

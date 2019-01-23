@@ -214,6 +214,39 @@ public class SQLiteMessageStorageApi implements WritableMessageStorageApi {
     }
 
     @Override
+    public Future<Void> deleteMessages(String channel, List<MessageId> list, ResponseCallback<Void> callback, ResponseErrorCallback errorCallback) {
+        return executor.queue(() -> {
+            long previousFileId = -1;
+            long previousFirstRowId = -1;
+            long previousLastRowId = -1;
+            for (MessageId messageId : list) {
+                if (!(messageId instanceof MyMessageId))
+                    throw new RuntimeException("Invalid message id type");
+                MyMessageId mmid = (MyMessageId) messageId;
+                if (mmid.fileDateId == previousFileId && previousFirstRowId == mmid.id + 1) {
+                    previousFirstRowId = mmid.id;
+                } else if (mmid.fileDateId == previousFileId && previousLastRowId == mmid.id - 1) {
+                    previousLastRowId = mmid.id;
+                } else {
+                    if (previousFileId != -1) {
+                        SQLiteMessageStorageFile file = openFileFor(previousFileId, true);
+                        file.removeMessageRange(channel, previousFirstRowId, previousLastRowId);
+                        file.removeReference();
+                    }
+                    previousFileId = mmid.fileDateId;
+                    previousFirstRowId = previousLastRowId = mmid.id;
+                }
+            }
+            if (previousFileId != -1) {
+                SQLiteMessageStorageFile file = openFileFor(previousFileId, true);
+                file.removeMessageRange(channel, previousFirstRowId, previousLastRowId);
+                file.removeReference();
+            }
+            return null;
+        }, callback, errorCallback);
+    }
+
+    @Override
     public Future<Void> subscribeChannelMessages(String channel, MessageListener messageListener, ResponseCallback<Void> callback, ResponseErrorCallback errorCallback) {
         synchronized (listeners) {
             if (channel != null) {

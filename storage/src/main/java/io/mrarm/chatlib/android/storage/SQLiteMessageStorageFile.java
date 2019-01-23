@@ -180,15 +180,15 @@ public class SQLiteMessageStorageFile {
                     MessagesContract.MessageEntry.COLUMN_NAME_EXTRA_DATA +
                     " FROM ");
             query.append(tableName);
-            boolean hasAppendedWhere = false;
+            query.append(" WHERE " + MessagesContract.MessageEntry.COLUMN_NAME_TYPE + "!=" +
+                    MessageStorageHelper.TYPE_DELETED);
             if (id != -1) {
-                query.append(" WHERE " + MessagesContract.MessageEntry._ID);
+                query.append(" AND " + MessagesContract.MessageEntry._ID);
                 query.append(newer ? '>' : '<');
                 query.append(id);
-                hasAppendedWhere = true;
             }
             if (filterOptions != null) {
-                appendFilterQuery(query, filterOptions, hasAppendedWhere);
+                appendFilterQuery(query, filterOptions, true);
             }
             query.append(" ORDER BY " + MessagesContract.MessageEntry._ID);
             query.append(newer ? " ASC" : " DESC");
@@ -271,6 +271,32 @@ public class SQLiteMessageStorageFile {
             statement.clearBindings();
             return ret;
         }
+    }
+
+    public synchronized void removeMessage(String channel, long id) {
+        requireWrite();
+        String tableName = MessagesContract.MessageEntry.getEscapedTableName(channel);
+        database.execSQL("UPDATE " + tableName + " SET " +
+                MessagesContract.MessageEntry.COLUMN_NAME_TYPE + "=" +
+                    MessageStorageHelper.TYPE_DELETED +
+                " WHERE " +
+                MessagesContract.MessageEntry._ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    public synchronized void removeMessageRange(String channel, long firstId, long lastId) {
+        if (firstId == lastId) {
+            removeMessage(channel, firstId);
+            return;
+        }
+        requireWrite();
+        String tableName = MessagesContract.MessageEntry.getEscapedTableName(channel);
+        database.execSQL("UPDATE " + tableName + " SET " +
+                MessagesContract.MessageEntry.COLUMN_NAME_TYPE + "=" +
+                    MessageStorageHelper.TYPE_DELETED +
+                " WHERE " +
+                MessagesContract.MessageEntry._ID + ">=? AND " +
+                MessagesContract.MessageEntry._ID + "<=?",
+                new String[]{String.valueOf(firstId), String.valueOf(lastId)});
     }
 
 }
