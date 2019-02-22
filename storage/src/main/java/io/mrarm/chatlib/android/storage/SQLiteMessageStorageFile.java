@@ -80,6 +80,7 @@ public class SQLiteMessageStorageFile {
 
     public void requireWrite() {
         synchronized (this) {
+            triedOpen = true;
             if (database == null) {
                 readOnly = false;
                 openDatabase();
